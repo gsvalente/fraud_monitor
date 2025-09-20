@@ -1,0 +1,123 @@
+# Telegram Fraud Monitor - Docker Ignore File
+# Excludes unnecessary files from Docker build context
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+# .env  # Commented out - we need .env file in container
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Database files (will be mounted as volume)
+*.db
+*.sqlite
+*.sqlite3
+fraud_monitor.db
+
+# Log files (will be mounted as volume)
+*.log
+logs/
+
+# Downloaded media files (will be mounted as volume)
+downloads/
+media/
+
+# Test files and coverage
+test_*.py
+*_test.py
+tests/
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+
+# Documentation files
+*.md
+docs/
+PHASE*.md
+*_GUIDE.md
+TESSERACT_INSTALLATION.md
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Environment files (sensitive data)
+# .env  # Commented out - we need .env file in container
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Alembic migration files (will be copied separately if needed)
+alembic/versions/*.py
+
+# Setup and installation scripts
+setup.py
+install.sh
+install.bat
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

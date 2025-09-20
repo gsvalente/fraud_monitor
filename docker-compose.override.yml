@@ -1,0 +1,74 @@
+# Docker Compose Override File
+# This file allows you to customize the docker-compose.yml for different environments
+# Rename this file based on your needs:
+# - docker-compose.override.yml (default override)
+# - docker-compose.dev.yml (development)
+# - docker-compose.prod.yml (production)
+
+version: '3.8'
+
+services:
+  fraud-monitor:
+    # Development overrides
+    environment:
+      # Enable debug mode for development
+      - DEBUG=true
+      - VERBOSE_LOGGING=true
+      - LOG_LEVEL=DEBUG
+    
+    # Mount source code for development (hot reload)
+    # Uncomment the following lines for development mode:
+    # volumes:
+    #   - ./src:/app/src:ro
+    #   - ./config:/app/config:ro
+    #   - ./main.py:/app/main.py:ro
+    
+    # Port mapping for future web interface
+    # ports:
+    #   - "8000:8000"
+    
+    # Resource limits for development (more generous)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Additional services for development/testing
+  # Uncomment as needed:
+  
+  # Redis cache service (for future enhancements)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: fraud-monitor-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - fraud-monitor-network
+  #   volumes:
+  #     - redis_data:/data
+  
+  # PostgreSQL database (alternative to SQLite for production)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: fraud-monitor-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: fraud_monitor
+  #     POSTGRES_USER: fraud_user
+  #     POSTGRES_PASSWORD: secure_password_here
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - fraud-monitor-network
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# Additional volumes for optional services
+# volumes:
+#   redis_data:
+#   postgres_data:

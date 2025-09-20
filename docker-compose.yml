@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # Main Telegram Fraud Monitor Application
+  fraud-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-fraud-monitor
+    restart: unless-stopped
+    
+    # Environment variables
+    environment:
+      - PYTHONPATH=/app
+      - TESSERACT_PATH=tesseract
+      - DATABASE_PATH=/app/data/fraud_monitor.db
+      - LOG_FILE=/app/logs/fraud_detection.log
+      - LOG_LEVEL=INFO
+    
+    # Environment file (create docker.env for container-specific settings)
+    env_file:
+      - .env
+    
+    # Volume mounts for persistent data
+    volumes:
+      # Database persistence
+      - fraud_data:/app/data
+      # Downloaded media files
+      - fraud_downloads:/app/downloads
+      # Application logs
+      - fraud_logs:/app/logs
+      # Configuration files (optional override)
+      - ./config:/app/config:ro
+    
+    # Network configuration
+    networks:
+      - fraud-monitor-network
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.append('/app'); from src.database.simplified_database import SimplifiedDatabaseManager; print('Health check passed')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    
+    # Depends on database initialization
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  # Database initialization service
+  db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud-monitor-db-init
+    
+    # Environment variables
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_PATH=/app/data/fraud_monitor.db
+    
+    # Environment file
+    env_file:
+      - .env
+    
+    # Volume mounts
+    volumes:
+      - fraud_data:/app/data
+      - fraud_logs:/app/logs
+    
+    # Network configuration
+    networks:
+      - fraud-monitor-network
+    
+    # Initialize database and exit
+    command: |
+      sh -c '
+        echo "Initializing database..." &&
+        python -c "
+import sys
+sys.path.append(\"/app\")
+from src.database.simplified_database import SimplifiedDatabaseManager
+try:
+    db_manager = SimplifiedDatabaseManager(\"/app/data/fraud_monitor.db\")
+    print(\"Database initialized successfully\")
+except Exception as e:
+    print(f\"Database initialization error: {e}\")
+    exit(1)
+        " &&
+        echo "Database initialization completed!"
+      '
+    
+    # This service should exit after completion
+    restart: "no"
+
+  # Optional: Web dashboard (for future Phase 6)
+  # Uncomment when ready to add web interface
+  # web-dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.web
+  #   container_name: fraud-monitor-web
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:8000"
+  #   environment:
+  #     - DATABASE_PATH=/app/data/fraud_monitor.db
+  #   volumes:
+  #     - fraud_data:/app/data:ro
+  #   networks:
+  #     - fraud-monitor-network
+  #   depends_on:
+  #     - fraud-monitor
+
+# Named volumes for data persistence
+volumes:
+  fraud_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker-data/database
+  
+  fraud_downloads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker-data/downloads
+  
+  fraud_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker-data/logs
+
+# Custom network for service communication
+networks:
+  fraud-monitor-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

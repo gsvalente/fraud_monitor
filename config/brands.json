@@ -1,0 +1,97 @@
+{
+  "paypal": {
+    "name": "PayPal",
+    "patterns": [
+      "paypal",
+      "pay pal",
+      "pay-pal"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.9,
+    "category": "payment"
+  },
+  "binance": {
+    "name": "Binance",
+    "patterns": [
+      "binance",
+      "bnb"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.8,
+    "category": "crypto"
+  },
+  "coinbase": {
+    "name": "Coinbase",
+    "patterns": [
+      "coinbase",
+      "coin base"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.8,
+    "category": "crypto"
+  },
+  "metamask": {
+    "name": "MetaMask",
+    "patterns": [
+      "metamask",
+      "meta mask"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.7,
+    "category": "crypto"
+  },
+  "apple": {
+    "name": "Apple",
+    "patterns": [
+      "apple",
+      "app store",
+      "itunes"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.6,
+    "category": "tech"
+  },
+  "google": {
+    "name": "Google",
+    "patterns": [
+      "google",
+      "gmail",
+      "google pay"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.6,
+    "category": "tech"
+  },
+  "amazon": {
+    "name": "Amazon",
+    "patterns": [
+      "amazon",
+      "aws"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.7,
+    "category": "ecommerce"
+  },
+  "microsoft": {
+    "name": "Microsoft",
+    "patterns": [
+      "microsoft",
+      "outlook",
+      "xbox"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.6,
+    "category": "tech"
+  },
+  "revolut": {
+    "name": "Revolut",
+    "patterns": [
+      "revolut",
+      "revolut bank",
+      "revolut card"
+    ],
+    "case_sensitive": false,
+    "risk_weight": 0.8,
+    "category": "fintech"
+  }
+}
