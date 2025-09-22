@@ -168,17 +168,6 @@ LOG_LEVEL=INFO
 python main.py
 ```
 
-### Testing the System
-```bash
-# Test fraud detection
-python test_advanced_fraud_scoring.py
-
-# Test brand detection
-python test_brand_detection.py
-
-# Test alert system
-python test_alert_system.py
-```
 
 ### Managing Keywords
 ```bash
@@ -300,10 +289,6 @@ If you encounter issues:
 - Use environment variables for sensitive configuration
 - Be aware of Telegram's terms of service when monitoring groups
 - Respect user privacy and local laws regarding data collection
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
