@@ -1,5 +1,9 @@
 # Telegram Fraud Monitor 🔍
 
+
+### IMPORTANT
+Run python main.py locally first before building docker image as it wont be able to connect to the telegram API, as it needs your code and you cant input on container
+
 A comprehensive Python tool for monitoring Telegram groups and detecting potential fraud activities in real-time. This system uses advanced detection methods including keyword analysis, brand recognition, OCR text extraction, and intelligent alerting.
 
 ## 🌟 Key Features
