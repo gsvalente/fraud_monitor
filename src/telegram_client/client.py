@@ -72,12 +72,81 @@ class TelegramFraudMonitor:
             session_name = f"Monitor_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             self.current_session = self.db.start_monitoring_session(session_name, self.target_groups)
             
-            await self.client.start(phone=self.phone_number)
-            self.logger.info(f"{Fore.GREEN}✅ Successfully connected to Telegram!")
+            # Check if running in Docker (no interactive terminal)
+            is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER') == 'true'
+            
+            if is_docker:
+                print(f"{Fore.YELLOW}🐳 Docker environment detected")
+                # Check if session file exists
+                session_file = 'fraud_monitor_session.session'
+                if not os.path.exists(session_file):
+                    print(f"{Fore.RED}❌ No session file found in Docker container!")
+                    print(f"{Fore.YELLOW}📋 To fix this issue:")
+                    print(f"{Fore.WHITE}   1. Run the application locally first to authenticate:")
+                    print(f"{Fore.WHITE}      python main.py")
+                    print(f"{Fore.WHITE}   2. Copy the generated '{session_file}' to your Docker volume")
+                    print(f"{Fore.WHITE}   3. Or mount it as a volume: -v ./fraud_monitor_session.session:/app/fraud_monitor_session.session")
+                    print(f"{Fore.RED}🛑 Stopping application...")
+                    return
+                else:
+                    print(f"{Fore.GREEN}✅ Session file found: {session_file}")
+            
+            try:
+                await self.client.start(phone=self.phone_number)
+                self.logger.info(f"{Fore.GREEN}✅ Successfully connected to Telegram!")
+            except EOFError as e:
+                if is_docker:
+                    print(f"{Fore.RED}❌ Authentication failed in Docker environment")
+                    print(f"{Fore.YELLOW}📋 This usually means:")
+                    print(f"{Fore.WHITE}   • The session file is corrupted or invalid")
+                    print(f"{Fore.WHITE}   • You need to re-authenticate locally first")
+                    print(f"{Fore.WHITE}   • Run 'python main.py' on your local machine to create a new session")
+                else:
+                    print(f"{Fore.RED}❌ Authentication failed: {e}")
+                    print(f"{Fore.YELLOW}💡 Please ensure you can receive SMS/calls for verification")
+                raise
+            except Exception as auth_error:
+                print(f"{Fore.RED}❌ Authentication error: {auth_error}")
+                if "AUTH_KEY" in str(auth_error):
+                    print(f"{Fore.YELLOW}💡 Session may be expired. Try deleting the session file and re-authenticating.")
+                raise
             
             # Initialize alert system after successful connection
-            self.alert_manager = AlertManager(telegram_client=self.client)
+            alert_chat_id = os.getenv('ALERT_CHAT_ID', 'me')  # Default to saved messages if not set
+            enable_desktop_notifications = os.getenv('ENABLE_DESKTOP_NOTIFICATIONS', 'true').lower() == 'true'
+            enable_sound_alerts = os.getenv('ENABLE_SOUND_ALERTS', 'true').lower() == 'true'
+            bot_token = os.getenv('BOT_TOKEN')
+            bot_alert_chat_id = os.getenv('BOT_ALERT_CHAT_ID')
+            
+            self.alert_manager = AlertManager(
+                telegram_client=self.client, 
+                alert_chat_id=alert_chat_id,
+                enable_desktop_notifications=enable_desktop_notifications,
+                enable_sound_alerts=enable_sound_alerts,
+                bot_token=bot_token,
+                bot_alert_chat_id=bot_alert_chat_id
+            )
+            
             print(f"{Fore.CYAN}🚨 Alert system initialized - notifications enabled!")
+            if enable_desktop_notifications:
+                print(f"{Fore.GREEN}🔔 Desktop notifications: ENABLED")
+            else:
+                print(f"{Fore.YELLOW}🔔 Desktop notifications: DISABLED")
+            
+            if enable_sound_alerts:
+                print(f"{Fore.GREEN}🔊 Sound alerts: ENABLED")
+            else:
+                print(f"{Fore.YELLOW}🔊 Sound alerts: DISABLED")
+                
+            if bot_token and bot_alert_chat_id:
+                print(f"{Fore.GREEN}🤖 Bot alerts: ENABLED (Chat: {bot_alert_chat_id})")
+            else:
+                print(f"{Fore.YELLOW}🤖 Bot alerts: DISABLED (No bot token or chat ID configured)")
+                
+            if alert_chat_id != 'me':
+                print(f"{Fore.CYAN}📤 Alerts will be sent to: {alert_chat_id}")
+            else:
+                print(f"{Fore.YELLOW}📤 Alerts will be sent to Saved Messages (set ALERT_CHAT_ID to change)")
             
             # Get user info
             me = await self.client.get_me()
@@ -94,6 +163,11 @@ class TelegramFraudMonitor:
             # Keep the client running
             await self.client.run_until_disconnected()
             
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}🛑 Received stop signal")
+        except EOFError:
+            print(f"\n{Fore.RED}❌ EOF Error - Cannot read input in this environment")
+            print(f"{Fore.YELLOW}💡 If running in Docker, ensure you have a valid session file")
         except Exception as e:
             self.logger.error(f"{Fore.RED}❌ Error starting client: {e}")
             raise
@@ -133,6 +207,7 @@ class TelegramFraudMonitor:
         # Basic message info
         print(f"\n{Fore.CYAN}📨 New Message #{self.message_count}")
         print(f"{Fore.WHITE}🏷️  Group: {chat_title}")
+        print(f"{Fore.YELLOW}🆔 Chat ID: {event.chat_id}")
         print(f"{Fore.WHITE}👤 Sender: {sender_name} (@{sender_username})")
         print(f"{Fore.WHITE}🕐 Time: {timestamp}")
         
@@ -427,10 +502,22 @@ async def main():
         await monitor.start()
     except KeyboardInterrupt:
         print(f"\n{Fore.YELLOW}🛑 Received stop signal (Ctrl+C)")
+    except EOFError:
+        print(f"\n{Fore.RED}❌ EOF Error: Cannot read input in this environment")
+        print(f"{Fore.YELLOW}💡 This typically happens when:")
+        print(f"{Fore.WHITE}   • Running in Docker without a valid session file")
+        print(f"{Fore.WHITE}   • No interactive terminal available for authentication")
+        print(f"{Fore.CYAN}🔧 Solution: Run locally first to create session file, then copy to Docker")
     except Exception as e:
         print(f"\n{Fore.RED}❌ Unexpected error: {e}")
+        import traceback
+        print(f"{Fore.RED}📋 Full error details:")
+        traceback.print_exc()
     finally:
-        await monitor.stop()
+        try:
+            await monitor.stop()
+        except Exception as stop_error:
+            print(f"{Fore.RED}⚠️  Error during cleanup: {stop_error}")
 
 if __name__ == "__main__":
     asyncio.run(main())

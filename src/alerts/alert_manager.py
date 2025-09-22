@@ -13,9 +13,19 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import json
+import winsound
+import threading
 
 from telethon import TelegramClient
 from colorama import Fore, Style
+
+# Desktop notifications
+try:
+    from plyer import notification
+    NOTIFICATIONS_AVAILABLE = True
+except ImportError:
+    NOTIFICATIONS_AVAILABLE = False
+    print("⚠️  Desktop notifications not available. Install 'plyer' for notifications: pip install plyer")
 
 # Import existing components
 import sys
@@ -151,16 +161,27 @@ class AlertManager:
     via Telegram using existing client infrastructure.
     """
     
-    def __init__(self, telegram_client=None, alert_chat_id: str = None):
+    def __init__(self, telegram_client=None, alert_chat_id: str = None, enable_desktop_notifications: bool = True, enable_sound_alerts: bool = True, bot_token: str = None, bot_alert_chat_id: str = None):
         """
         Initialize AlertManager.
         
         Args:
             telegram_client: Telegram client instance for sending alerts
             alert_chat_id: Chat ID to send alerts to (defaults to 'me')
+            enable_desktop_notifications: Enable desktop notifications when alerts are sent
+            enable_sound_alerts: Enable sound alerts when alerts are sent
+            bot_token: Telegram bot token for sending alerts via bot
+            bot_alert_chat_id: Chat ID for bot alerts (group/channel ID)
         """
         # Initialize logging
         self.logger = logging.getLogger(__name__)
+        
+        # Notification settings
+        self.enable_desktop_notifications = enable_desktop_notifications and NOTIFICATIONS_AVAILABLE
+        self.enable_sound_alerts = enable_sound_alerts
+        
+        if enable_desktop_notifications and not NOTIFICATIONS_AVAILABLE:
+            self.logger.warning("Desktop notifications requested but 'plyer' not available. Install with: pip install plyer")
         
         # Initialize Telegram client
         if telegram_client is None:
@@ -184,6 +205,22 @@ class AlertManager:
             self._client_needs_start = False
             
         self.alert_chat_id = alert_chat_id or "me"
+        
+        # Initialize bot client if bot token is provided
+        self.bot_token = bot_token
+        self.bot_alert_chat_id = bot_alert_chat_id
+        self.bot_client = None
+        
+        if bot_token:
+            try:
+                import requests
+                self.bot_available = True
+                self.logger.info(f"Bot token provided. Bot alerts will be sent to chat: {bot_alert_chat_id}")
+            except ImportError:
+                self.bot_available = False
+                self.logger.warning("Bot token provided but 'requests' library not available. Install with: pip install requests")
+        else:
+            self.bot_available = False
         
         # Initialize detection systems
         sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -335,9 +372,126 @@ class AlertManager:
         self.recent_alerts.append(datetime.now())
         self.alerts_sent += 1
 
+    def _send_desktop_notification(self, alert: Alert):
+        """Send desktop notification for alert"""
+        if not self.enable_desktop_notifications:
+            return
+            
+        try:
+            # Create notification title and message
+            severity_emoji = {
+                AlertSeverity.LOW: "🟡",
+                AlertSeverity.MEDIUM: "🟠", 
+                AlertSeverity.HIGH: "🔴",
+                AlertSeverity.CRITICAL: "🚨"
+            }
+            
+            title = f"{severity_emoji.get(alert.severity, '⚠️')} Fraud Alert - {alert.severity.value.upper()}"
+            
+            # Create concise message for notification
+            message_parts = []
+            if alert.fraud_result:
+                keywords = ", ".join(alert.fraud_result.matched_keywords)
+                message_parts.append(f"Keywords: {keywords}")
+            
+            if alert.brand_matches:
+                brands = ", ".join([match.brand_name for match in alert.brand_matches])
+                message_parts.append(f"Brands: {brands}")
+            
+            message_parts.append(f"Group: {alert.context.group_name}")
+            message_parts.append(f"Risk Score: {alert.risk_score:.2f}")
+            
+            message = "\n".join(message_parts)
+            
+            # Send notification in a separate thread to avoid blocking
+            def send_notification():
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_name="Fraud Monitor",
+                    timeout=10,
+                    toast=True  # Use Windows toast notifications if available
+                )
+            
+            threading.Thread(target=send_notification, daemon=True).start()
+            self.logger.info("Desktop notification sent")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to send desktop notification: {e}")
+
+    def _play_alert_sound(self, alert: Alert):
+        """
+        Play alert sound based on severity level.
+        
+        Args:
+            alert: Alert object containing severity information
+        """
+        if not self.enable_sound_alerts:
+            return
+            
+        try:
+            # Play different sounds based on severity
+            if alert.severity == AlertSeverity.CRITICAL:
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+                # Additional beeps for critical alerts
+                for _ in range(2):
+                    winsound.Beep(1000, 200)  # 1000Hz for 200ms
+            elif alert.severity == AlertSeverity.HIGH:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+                winsound.Beep(800, 300)  # 800Hz for 300ms
+            elif alert.severity == AlertSeverity.MEDIUM:
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            else:  # LOW
+                winsound.MessageBeep(winsound.MB_OK)
+                
+            self.logger.info(f"Alert sound played for {alert.severity.value} severity")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to play alert sound: {e}")
+
+    async def _send_bot_alert(self, alert: Alert) -> bool:
+        """
+        Send alert via Telegram bot to a group/channel.
+        
+        Args:
+            alert: Alert object to send
+            
+        Returns:
+            bool: True if sent successfully, False otherwise
+        """
+        if not self.bot_available or not self.bot_token or not self.bot_alert_chat_id:
+            return False
+            
+        try:
+            import requests
+            
+            # Telegram Bot API URL
+            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            
+            # Prepare message data
+            data = {
+                'chat_id': self.bot_alert_chat_id,
+                'text': alert.alert_message,
+                'parse_mode': 'HTML'
+            }
+            
+            # Send message via bot
+            response = requests.post(url, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                self.logger.info(f"Bot alert sent successfully to chat {self.bot_alert_chat_id}")
+                return True
+            else:
+                self.logger.error(f"Bot alert failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Failed to send bot alert: {e}")
+            return False
+
     async def send_alert(self, alert: Alert) -> bool:
         """
-        Send alert via Telegram.
+        Send alert via Telegram with optional desktop notifications, sounds, and bot alerts.
         
         Args:
             alert: Alert object to send
@@ -355,13 +509,33 @@ class AlertManager:
             # Format message
             message = alert.alert_message
             
-            # Send to yourself (Saved Messages)
-            await self.telegram_client.send_message('me', message)
+            # Try to send via bot first if available
+            bot_sent = False
+            if self.bot_available:
+                bot_sent = await self._send_bot_alert(alert)
+                if bot_sent:
+                    print(f"🤖 Bot alert sent to group: {alert.alert_type.value}")
+            
+            # Send to configured chat (group, channel, or saved messages) if bot failed or not available
+            if not bot_sent:
+                await self.telegram_client.send_message(self.alert_chat_id, message)
+                print(f"📱 Telegram alert sent: {alert.alert_type.value}")
             
             # Update rate limiting
             self._update_rate_limit()
             
+            # Send desktop notification if enabled
+            if self.enable_desktop_notifications:
+                self._send_desktop_notification(alert)
+                print(f"🖥️  Desktop notification triggered")
+            
+            # Play alert sound if enabled
+            if self.enable_sound_alerts:
+                self._play_alert_sound(alert)
+                print(f"🔊 Sound alert triggered")
+            
             self.logger.info(f"Alert sent successfully: {alert.alert_type.value}")
+            self.alerts_sent += 1
             return True
             
         except Exception as e:

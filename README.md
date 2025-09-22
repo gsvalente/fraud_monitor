@@ -133,9 +133,14 @@ TARGET_GROUPS=group1,group2,group3
 
 ### Alert System
 ```env
-# Telegram Bot for Alerts
+# Telegram Bot for Alerts (Optional - for notifications)
 TELEGRAM_BOT_TOKEN=your_bot_token
-ALERT_CHAT_ID=your_chat_id
+# ALERT_CHAT_ID can be:
+# - 'me' for Saved Messages (default)
+# - Group/Channel username: @your_group_name
+# - Chat ID number: -1001234567890
+# - Your own username: @your_username
+ALERT_CHAT_ID=me
 
 # Alert Settings
 FRAUD_SCORE_THRESHOLD=0.6
@@ -159,6 +164,39 @@ DATABASE_URL=sqlite:///fraud_monitor.db
 SESSION_NAME=fraud_monitor
 LOG_LEVEL=INFO
 ```
+
+## 🚨 Alert Configuration
+
+The system can send fraud alerts to different destinations:
+
+### Setting Up Alerts
+
+1. **Saved Messages (Default)**: Alerts go to your Telegram "Saved Messages"
+   ```env
+   ALERT_CHAT_ID=me
+   ```
+
+2. **Group Notifications**: Create a group, add your bot, and use the group username
+   ```env
+   ALERT_CHAT_ID=@your_alert_group
+   ```
+
+3. **Channel Notifications**: Create a channel, add your bot as admin, and use the channel username
+   ```env
+   ALERT_CHAT_ID=@your_alert_channel
+   ```
+
+4. **Direct Chat**: Use a chat ID number (get it from @userinfobot)
+   ```env
+   ALERT_CHAT_ID=-1001234567890
+   ```
+
+### Why Saved Messages Don't Notify
+
+Telegram's "Saved Messages" don't trigger push notifications. To get actual notifications:
+- Create a group with just yourself and the bot
+- Or create a channel and add the bot as admin
+- Set the `ALERT_CHAT_ID` to the group/channel username or ID
 
 ## 🎯 Usage Examples
 
